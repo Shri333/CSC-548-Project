@@ -1,0 +1,3 @@
+*.o
+bitonic-debug
+bitonic-release
