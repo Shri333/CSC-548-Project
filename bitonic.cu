@@ -6,7 +6,7 @@
 #include <cuda_runtime.h>
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
-#include "common.h"
+#include "common.cuh"
 using namespace std;
 
 void usage() {
@@ -15,34 +15,12 @@ void usage() {
     exit(1);
 }
 
-// compares the values of the elements at the two indices (i and j)
-// and swaps if gpuVec[i] > gpuVec[j]
-__device__ void cmpSwap(float* gpuVecPtr, size_t i, size_t j) {
-    if (gpuVecPtr[i] > gpuVecPtr[j]) {
-        float tmp = gpuVecPtr[i];
-        gpuVecPtr[i] = gpuVecPtr[j];
-        gpuVecPtr[j] = tmp;
-    }
-}
-
-// kernel for bitonic sort
-__global__ void bitonicSort(float* gpuVecPtr, size_t gpuVecSize, unsigned int phase, unsigned int step) {
+// kernel for normalized bitonic sort
+__global__ void bitonicSwapKernel(float vec[], size_t size, unsigned int phase, unsigned int step) {
     size_t idx = ((size_t) blockDim.x) * blockIdx.x + threadIdx.x;
-    if (idx >= gpuVecSize / 2)
+    if (idx >= size / 2)
         return;
-    size_t groupSize = 1 << step;
-    size_t threadsPerGroup = groupSize / 2;
-    size_t groupIdx = idx / threadsPerGroup;
-    size_t i = groupIdx * groupSize + (idx % threadsPerGroup);
-    size_t j;
-    if (step == phase) {
-        // first step: normalized swap
-        j = (groupSize * (groupIdx + 1) - 1) - (idx % threadsPerGroup);
-    } else {
-        // rest of the steps: repeated bitonic merge
-        j = i + threadsPerGroup;
-    }
-    cmpSwap(gpuVecPtr, i, j);
+    bitonicSwap(vec, size, phase, step, idx);
 }
 
 int main(int argc, char** argv) {
@@ -74,7 +52,7 @@ int main(int argc, char** argv) {
     cudaEventRecord(start);
     for (unsigned int phase = 1; phase <= k; phase++)
         for (unsigned int step = phase; step >= 1; step--)
-            bitonicSort<<<numBlocks, NUM_THREADS>>>(gpuVecPtr, size, phase, step);
+            bitonicSwapKernel<<<numBlocks, NUM_THREADS>>>(gpuVecPtr, size, phase, step);
     cudaEventRecord(stop);
 
     // copy gpuVec back into vec
