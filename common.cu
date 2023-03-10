@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <random>
 #include <thrust/host_vector.h>
-#include "common.cuh"
+#include "common.h"
 using namespace std;
 
 // lowest number that can be generated
@@ -22,6 +22,7 @@ thrust::host_vector<float> genVec(size_t size) {
     cout << "Generating random vector of size " << size << "..." << endl;
     thrust::host_vector<int> vec(size);
     for (size_t i = 0; i < size; i++) {
+
         vec[i] = dist(gen);
     }
 

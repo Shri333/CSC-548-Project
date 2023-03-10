@@ -6,7 +6,7 @@
 #include <cuda_runtime.h>
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
-#include "common.cuh"
+#include "common.h"
 using namespace std;
 
 void usage() {
