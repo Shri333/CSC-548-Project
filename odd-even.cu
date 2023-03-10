@@ -30,6 +30,7 @@ __global__ void smallOddEvenSort(float vec[], size_t size) {
         } else if (2 * threadIdx.x + 2 < size) { // odd
             cmpSwap(vec, 2 * threadIdx.x + 1, 2 * threadIdx.x + 2);
         }
+        __syncthreads();
     }
 
     // copy shared memory back into vec (after sorting with odd-even sort)
@@ -94,6 +95,12 @@ int main(int argc, char** argv) {
 
         // sort a partition of the vector on each block w/ bitonic sort
         localBitonicSort<<<numBlocks, NUM_THREADS / 2>>>(gpuVecPtr, size);
+
+        numBlocks = size / NUM_THREADS;
+        if (size % NUM_THREADS == 0)
+            numBlocks++;
+
+        // 
     }
     cudaEventRecord(stop);
 
