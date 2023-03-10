@@ -1,32 +1,24 @@
-CXX = nvcc
-DEBUG_CXXFLAGS = -DDEBUG -g -std=c++14 --compiler-options -Wall
-RELEASE_CXXFLAGS = -O3 -std=c++14 --compiler-options -Wall
-DEBUG = bitonic-debug
-RELEASE = bitonic-release
+CXXFLAGS = -dc -O3 -std=c++14 -I. --compiler-options -Wall
+EXECUTABLES = bitonic odd-even
 
-debug: $(DEBUG)
+all: $(EXECUTABLES)
 
-release: $(RELEASE)
+bitonic: bitonic.o common.o
+	nvcc -O3 -o $@ $^
 
-bitonic-debug: bitonic-debug.o common-debug.o
-	$(CXX) $(DEBUG_CXXFLAGS) -o $@ $^
+odd-even: odd-even.o common.o
+	nvcc -O3 -o $@ $^
 
-bitonic-release: bitonic-release.o common-release.o
-	$(CXX) $(RELEASE_CXXFLAGS) -o $@ $^
+bitonic.o: bitonic.cu common.cuh
+	nvcc $(CXXFLAGS) -o $@ -c $<
 
-bitonic-debug.o: bitonic.cu common.cuh
-	$(CXX) -dc $(DEBUG_CXXFLAGS) -o $@ -c $<
+odd-even.o: odd-even.cu common.cuh
+	nvcc $(CXXFLAGS) -o $@ -c $<
 
-bitonic-release.o: bitonic.cu common.cuh
-	$(CXX) -dc $(RELEASE_CXXFLAGS) -o $@ -c $<
-
-common-debug.o: common.cu common.cuh
-	$(CXX) -dc $(DEBUG_CXXFLAGS) -o $@ -c $<
-
-common-release.o: common.cu common.cuh
-	$(CXX) -dc $(RELEASE_CXXFLAGS) -o $@ -c $<
+common.o: common.cu common.cuh
+	nvcc $(CXXFLAGS) -o $@ -c $<
 
 .PHONY: clean
 
 clean:
-	rm -f $(DEBUG) $(RELEASE) *.o
+	rm -f $(EXECUTABLES) *.o

@@ -33,7 +33,7 @@ thrust::host_vector<float> genVec(size_t size) {
 
 // compares the values of the elements at the two indices (i and j)
 // and swaps if vec[i] > vec[j]
-__device__ static void cmpSwap(float vec[], size_t i, size_t j) {
+__device__ void cmpSwap(float vec[], size_t i, size_t j) {
     if (vec[i] > vec[j]) {
         float tmp = vec[i];
         vec[i] = vec[j];

@@ -11,9 +11,13 @@
 // function for generating a random vector of floats
 thrust::host_vector<float> genVec(size_t size);
 
+// compares the values of the elements at the two indices (i and j)
+// and swaps if vec[i] > vec[j]
+__device__ void cmpSwap(float vec[], size_t i, size_t j);
+
 // function for performing a normalized bitonic swap
 // given a step and phase and thread index
-__device__ void bitonicSwap(float* vec, size_t size, unsigned int phase, unsigned int step, size_t idx);
+__device__ void bitonicSwap(float vec[], size_t size, unsigned int phase, unsigned int step, size_t idx);
 
 // function for checking if a vector of floats is sorted or not
 // only used in DEBUG mode
