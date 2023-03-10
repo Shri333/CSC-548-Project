@@ -20,9 +20,8 @@ thrust::host_vector<float> genVec(size_t size) {
 
     // create and fill vec with random values
     cout << "Generating random vector of size " << size << "..." << endl;
-    thrust::host_vector<int> vec(size);
+    thrust::host_vector<float> vec(size);
     for (size_t i = 0; i < size; i++) {
-
         vec[i] = dist(gen);
     }
 

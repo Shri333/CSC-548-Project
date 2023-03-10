@@ -52,7 +52,7 @@ int main(int argc, char** argv) {
     // read k from argv[1] where 2^k is the size of the vector to generate
     istringstream ss(argv[1]);
     unsigned int k;
-    if (!(ss >> k) || k > sizeof(size_t) * 8)
+    if (!(ss >> k) || k > sizeof(size_t) * 8 - 1)
         usage();
 
     // generate vector
@@ -74,7 +74,7 @@ int main(int argc, char** argv) {
     cudaEventRecord(start);
     for (unsigned int phase = 1; phase <= k; phase++)
         for (unsigned int step = phase; step >= 1; step--)
-            bitonicSort<<<numBlocks, NUM_THREADS>>>(gpuVecPtr, gpuVec.size(), phase, step);
+            bitonicSort<<<numBlocks, NUM_THREADS>>>(gpuVecPtr, size, phase, step);
     cudaEventRecord(stop);
 
     // copy gpuVec back into vec

@@ -20,10 +20,10 @@ odd-even-debug: odd-even.cu common-debug.o
 odd-even-release: odd-even.cu common-release.o
 	$(CXX) $(RELEASE_CXXFLAGS) -o $@ $^
 
-common-debug.o: common.cu common.cuh
+common-debug.o: common.cu common.h
 	$(CXX) $(DEBUG_CXXFLAGS) -o $@ -c $<
 
-common-release.o: common.cu common.cuh
+common-release.o: common.cu common.h
 	$(CXX) $(RELEASE_CXXFLAGS) -o $@ -c $<
 
 .PHONY: clean
