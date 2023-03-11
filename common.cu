@@ -48,13 +48,10 @@ __device__ void bitonicSwap(float vec[], size_t size, unsigned int phase, unsign
     size_t threadsPerGroup = groupSize / 2;
     size_t groupIdx = idx / threadsPerGroup;
     size_t i = groupIdx * groupSize + (idx % threadsPerGroup);
-    size_t j;
+    size_t j = i + threadsPerGroup;
     if (step == phase) {
         // first step: normalized swap
         j = (groupSize * (groupIdx + 1) - 1) - (idx % threadsPerGroup);
-    } else {
-        // rest of the steps: repeated bitonic merge
-        j = i + threadsPerGroup;
     }
     cmpSwap(vec, i, j);
 }
