@@ -63,13 +63,14 @@ __device__ void bitonicSwap(float vec[], size_t size, unsigned int phase, unsign
 // only used in DEBUG mode
 #ifdef DEBUG
     bool sorted(const thrust::host_vector<float>& vec) {
+        bool res = true;
         for (size_t i = 0; i < vec.size() - 1; i++) {
             if (vec[i] > vec[i + 1]) {
-                cout << "Index: " << i << "; Value: " << vec[i] << endl;
-                cout << "Index: " << i + 1 << "; Value: " << vec[i + 1] << endl;
-                return false;
+                cout << "> Index: " << i << "; Value: " << vec[i] << endl;
+                cout << "< Index: " << i + 1 << "; Value: " << vec[i + 1] << endl;
+                res = false;
             }
         }
-        return true;
+        return res;
     }
 #endif
