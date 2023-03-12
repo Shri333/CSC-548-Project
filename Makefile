@@ -1,5 +1,5 @@
 CXXFLAGS = -dc -O3 -std=c++14 -I. --compiler-options -Wall
-EXECUTABLES = bitonic odd-even
+EXECUTABLES = bitonic odd-even batcher
 
 all: $(EXECUTABLES)
 
@@ -9,10 +9,16 @@ bitonic: bitonic.o common.o
 odd-even: odd-even.o common.o
 	nvcc -O3 -o $@ $^
 
+batcher: batcher.o common.o
+	nvcc -O3 -o $@ $^
+
 bitonic.o: bitonic.cu common.cuh
 	nvcc $(CXXFLAGS) -o $@ -c $<
 
 odd-even.o: odd-even.cu common.cuh
+	nvcc $(CXXFLAGS) -o $@ -c $<
+
+batcher.o: batcher.cu common.cuh
 	nvcc $(CXXFLAGS) -o $@ -c $<
 
 common.o: common.cu common.cuh
