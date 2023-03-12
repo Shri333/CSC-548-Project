@@ -24,10 +24,11 @@ __global__ void smallOddEvenSort(float vec[], size_t size) {
 
     // n - 1 iterations, alternating odd and even swaps
     for (size_t i = 0; i < size - 1; i++) {
-        if (threadIdx.x < size / 2 && (i & 1) == 0) // even
+        if (threadIdx.x < size / 2 && (i & 1) == 0) { // even
             cmpSwap(sharedVec, 2 * threadIdx.x, 2 * threadIdx.x + 1);
-        else if (threadIdx.x < size / 2 && 2 * threadIdx.x + 2 < size) // odd
+        } else if (threadIdx.x < size / 2 && 2 * threadIdx.x + 2 < size) { // odd
             cmpSwap(sharedVec, 2 * threadIdx.x + 1, 2 * threadIdx.x + 2);
+        }
         __syncthreads();
     }
 
@@ -38,8 +39,9 @@ __global__ void smallOddEvenSort(float vec[], size_t size) {
 // sort a partition of the global vector on each block using bitonic sort
 __global__ void localBitonicSort(float vec[], size_t size) {
     int idx = blockDim.x * blockIdx.x + threadIdx.x;
-    if (idx >= size)
+    if (idx >= size) {
         return;
+    }
 
     // copy partition of vector into shared memory
     __shared__ float sharedVec[NUM_THREADS / 2];
@@ -49,8 +51,9 @@ __global__ void localBitonicSort(float vec[], size_t size) {
     // bitonic sort this sub-vector/partition
     for (unsigned int phase = 1; phase <= 9; phase++) {
         for (unsigned int step = phase; step >= 1; step--) {
-            if (threadIdx.x < NUM_THREADS / 4)
+            if (threadIdx.x < NUM_THREADS / 4) {
                 bitonicSwap(sharedVec, NUM_THREADS / 2, phase, step, threadIdx.x);
+            }
             __syncthreads();
         }
     }
@@ -62,18 +65,20 @@ __global__ void localBitonicSort(float vec[], size_t size) {
 // bitonic merge two sorted subarrays/partitions into one subarray/partition
 __global__ void bitonicMerge(float vec[], size_t size, bool even) {
     int idx = blockDim.x * blockIdx.x + threadIdx.x;
-    if (idx >= size || (!even && idx + NUM_THREADS >= size))
+    if (idx >= size || (!even && idx + NUM_THREADS >= size)) {
         return;
+    }
 
     // copy 2 sorted partitions of vector into shared memory
     __shared__ float sharedVec[NUM_THREADS];
-    if (even)
+    if (even) {
         sharedVec[threadIdx.x] = vec[idx];
-    else
+    } else {
         sharedVec[threadIdx.x] = vec[idx + NUM_THREADS / 2];
+    }
     __syncthreads();
 
-    // merge two sorted partitions with bitonic merge
+    // merge two sorted partitions
     for (unsigned int phase = 1; phase <= 10; phase++) {
         for (unsigned int step = phase; step >= 1; step--) {
             if (threadIdx.x < NUM_THREADS / 2) {
@@ -84,21 +89,24 @@ __global__ void bitonicMerge(float vec[], size_t size, bool even) {
     }
 
     // copy sorted partition in shared memory back into vector
-    if (even)
+    if (even) {
         vec[idx] = sharedVec[threadIdx.x];
-    else
+    } else {
         vec[idx + NUM_THREADS / 2] = sharedVec[threadIdx.x];
+    }
 }
 
 int main(int argc, char** argv) {
-    if (argc != 2)
+    if (argc != 2) {
         usage();
+    }
 
     // read k from argv[1] where 2^k is the size of the vector to generate
     istringstream ss(argv[1]);
     unsigned int k;
-    if (!(ss >> k) || k > sizeof(size_t) * 8 - 1)
+    if (!(ss >> k) || k > sizeof(size_t) * 8 - 1) {
         usage();
+    }
 
     // generate vector
     size_t size = 1 << k;
@@ -120,17 +128,20 @@ int main(int argc, char** argv) {
     } else {
         // sort a partition of the vector on each block w/ bitonic sort
         size_t numBlocks = size / (NUM_THREADS / 2);
-        if (size % (NUM_THREADS / 2) != 0)
+        if (size % (NUM_THREADS / 2) != 0) {
             numBlocks++;
+        }
         localBitonicSort<<<numBlocks, NUM_THREADS / 2>>>(gpuVecPtr, size);
 
         // size / NUM_THREADS - 1 iterations: alternating odd/even bitonic merges
         numBlocks = size / NUM_THREADS;
-        if (size % NUM_THREADS == 0)
+        if (size % NUM_THREADS == 0) {
             numBlocks++;
+        }
         size_t iterations = size / (NUM_THREADS / 2) - 1;
-        for (size_t i = 0; i < iterations; i++)
+        for (size_t i = 0; i < iterations; i++) {
             bitonicMerge<<<numBlocks, NUM_THREADS>>>(gpuVecPtr, size, (i & 1) == 0);
+        }
     }
     cudaEventRecord(stop);
 
@@ -146,8 +157,9 @@ int main(int argc, char** argv) {
     cout << "Time: " << milliseconds << " ms" << endl;
 
 #ifdef DEBUG
-    if (!sorted(vec))
+    if (!sorted(vec)) {
         cout << "vec is not sorted!" << endl;
+    }
 #endif
 
     return 0;

@@ -18,20 +18,23 @@ void usage() {
 // kernel for normalized bitonic sort
 __global__ void bitonicSwapKernel(float vec[], size_t size, unsigned int phase, unsigned int step) {
     size_t idx = ((size_t) blockDim.x) * blockIdx.x + threadIdx.x;
-    if (idx >= size / 2)
+    if (idx >= size / 2) {
         return;
+    }
     bitonicSwap(vec, size, phase, step, idx);
 }
 
 int main(int argc, char** argv) {
-    if (argc != 2)
+    if (argc != 2) {
         usage();
+    }
 
     // read k from argv[1] where 2^k is the size of the vector to generate
     istringstream ss(argv[1]);
     unsigned int k;
-    if (!(ss >> k) || k > sizeof(size_t) * 8 - 1)
+    if (!(ss >> k) || k > sizeof(size_t) * 8 - 1) {
         usage();
+    }
 
     // generate vector
     size_t size = 1 << k;
@@ -41,18 +44,21 @@ int main(int argc, char** argv) {
     cout << "Sorting vector of size " << size << "..." << endl;
     thrust::device_vector<float> gpuVec = vec;
     float* gpuVecPtr = thrust::raw_pointer_cast(gpuVec.data());
-    size_t numBlocks = size / NUM_THREADS;
-    if (size % NUM_THREADS != 0)
+    size_t numBlocks = (size / 2) / NUM_THREADS;
+    if ((size / 2) % NUM_THREADS != 0) {
         numBlocks++;
+    }
 
     // time sorting
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
     cudaEventRecord(start);
-    for (unsigned int phase = 1; phase <= k; phase++)
-        for (unsigned int step = phase; step >= 1; step--)
+    for (unsigned int phase = 1; phase <= k; phase++) {
+        for (unsigned int step = phase; step >= 1; step--) {
             bitonicSwapKernel<<<numBlocks, NUM_THREADS>>>(gpuVecPtr, size, phase, step);
+        }
+    }
     cudaEventRecord(stop);
 
     // copy gpuVec back into vec
@@ -67,8 +73,9 @@ int main(int argc, char** argv) {
     cout << "Time: " << milliseconds << " ms" << endl;
 
 #ifdef DEBUG
-    if (!sorted(vec))
+    if (!sorted(vec)) {
         cout << "vec is not sorted!" << endl;
+    }
 #endif
 
     return 0;
