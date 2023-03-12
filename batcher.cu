@@ -16,21 +16,25 @@ void usage() {
 }
 
 // kernel for batcher's sorting network swaps
-__global__ void batcherOddEvenSwap(float vec[], size_t size, size_t phase, size_t step) {
+__global__ void batcherOddEvenSwap(float vec[], size_t size, unsigned int phase, unsigned int step) {
     size_t idx = blockDim.x * blockIdx.x + threadIdx.x;
     if (idx >= size) {
         return;
     }
 
-    // index calculation algorithm based on https://en.wikipedia.org/wiki/Batcher_odd%E2%80%93even_mergesort
-    for (size_t j = step % phase; j < size - step; j += 2 * step) {
-        for (size_t i = 0; i < step; i++) {
-            if (idx == i + j && (i + j) / (2 * phase) == (i + j + step) / (2 * phase)) {
-                cmpSwap(vec, i + j, i + j + step);
-                return;
-            }
+    // partner calculation algorithm based on https://gist.github.com/Bekbolatov/c8e42f5fcaa36db38402
+    size_t partner = idx ^ (1 << (phase - 1));
+    if (step > 1) {
+        size_t scale = 1 << (phase - step);
+        size_t box = 1 << step;
+        size_t scaledIdx = idx / scale - (idx / scale / box) * box;
+        if (scaledIdx == 0 || scaledIdx == box - 1) {
+            return;
         }
+        partner = (scaledIdx & 1) == 0 ? idx - scale : idx + scale;
     }
+
+    cmpSwap(vec, idx, partner);
 }
 
 int main(int argc, char** argv) {
@@ -63,8 +67,8 @@ int main(int argc, char** argv) {
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
     cudaEventRecord(start);
-    for (size_t phase = 1; phase < size; phase <<= 2) {
-        for (size_t step = phase; step >= 1; step >>= 2) {
+    for (unsigned int phase = 1; phase <= k; phase++) {
+        for (unsigned int step = phase; step >= 1; step--) {
             batcherOddEvenSwap<<<numBlocks, NUM_THREADS>>>(gpuVecPtr, size, phase, step);
         }
     }
