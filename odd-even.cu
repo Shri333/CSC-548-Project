@@ -3,6 +3,7 @@
 // author: Shrihan Dadi (sdadi2)
 #include <iostream>
 #include <sstream>
+#include <algorithm>
 #include <cuda_runtime.h>
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
@@ -38,7 +39,7 @@ __global__ void smallOddEvenSort(float vec[], size_t size) {
 
 // sort a partition of the global vector on each block using bitonic sort
 __global__ void localBitonicSort(float vec[], size_t size) {
-    size_t idx = blockDim.x * blockIdx.x + threadIdx.x;
+    size_t idx = ((size_t) blockDim.x) * blockIdx.x + threadIdx.x;
     if (idx >= size) {
         return;
     }
@@ -64,7 +65,7 @@ __global__ void localBitonicSort(float vec[], size_t size) {
 
 // bitonic merge two sorted subarrays/partitions into one subarray/partition
 __global__ void bitonicMerge(float vec[], size_t size, bool even) {
-    size_t idx = blockDim.x * blockIdx.x + threadIdx.x;
+    size_t idx = ((size_t) blockDim.x) * blockIdx.x + threadIdx.x;
     if (idx >= size || (!even && idx + NUM_THREADS >= size)) {
         return;
     }
@@ -128,16 +129,10 @@ int main(int argc, char** argv) {
     } else {
         // sort a partition of the vector on each block w/ bitonic sort
         size_t numBlocks = size / (NUM_THREADS / 2);
-        if (size % (NUM_THREADS / 2) != 0) {
-            numBlocks++;
-        }
         localBitonicSort<<<numBlocks, NUM_THREADS / 2>>>(gpuVecPtr, size);
 
-        // size / NUM_THREADS - 1 iterations: alternating odd/even bitonic merges
+        // size / (NUM_THREADS / 2) - 1 iterations: alternating odd/even bitonic merges
         numBlocks = size / NUM_THREADS;
-        if (size % NUM_THREADS == 0) {
-            numBlocks++;
-        }
         size_t iterations = size / (NUM_THREADS / 2) - 1;
         for (size_t i = 0; i < iterations; i++) {
             bitonicMerge<<<numBlocks, NUM_THREADS>>>(gpuVecPtr, size, (i & 1) == 0);

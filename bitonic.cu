@@ -3,6 +3,7 @@
 // author: Shrihan Dadi (sdadi2)
 #include <iostream>
 #include <sstream>
+#include <algorithm>
 #include <cuda_runtime.h>
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
@@ -16,7 +17,7 @@ void usage() {
 }
 
 // kernel for normalized bitonic sort
-__global__ void bitonicSwapKernel(float vec[], size_t size, unsigned int phase, unsigned int step) {
+__global__ void bitonicSort(float vec[], size_t size, unsigned int phase, unsigned int step) {
     size_t idx = ((size_t) blockDim.x) * blockIdx.x + threadIdx.x;
     if (idx >= size / 2) {
         return;
@@ -44,10 +45,8 @@ int main(int argc, char** argv) {
     cout << "Sorting vector of size " << size << "..." << endl;
     thrust::device_vector<float> gpuVec = vec;
     float* gpuVecPtr = thrust::raw_pointer_cast(gpuVec.data());
-    size_t numBlocks = (size / 2) / NUM_THREADS;
-    if ((size / 2) % NUM_THREADS != 0) {
-        numBlocks++;
-    }
+    size_t numBlocks = max((size_t) 1, (size / 2) / NUM_THREADS);
+    size_t numThreads = min(size / 2, (size_t) NUM_THREADS);
 
     // time sorting
     cudaEvent_t start, stop;
@@ -56,7 +55,7 @@ int main(int argc, char** argv) {
     cudaEventRecord(start);
     for (unsigned int phase = 1; phase <= k; phase++) {
         for (unsigned int step = phase; step >= 1; step--) {
-            bitonicSwapKernel<<<numBlocks, NUM_THREADS>>>(gpuVecPtr, size, phase, step);
+            bitonicSort<<<numBlocks, numThreads>>>(gpuVecPtr, size, phase, step);
         }
     }
     cudaEventRecord(stop);

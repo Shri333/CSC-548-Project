@@ -16,8 +16,8 @@ void usage() {
 }
 
 // kernel for batcher's sorting network swaps
-__global__ void batcherOddEvenSwap(float vec[], size_t size, unsigned int phase, unsigned int step) {
-    size_t idx = blockDim.x * blockIdx.x + threadIdx.x;
+__global__ void batcherOddEvenSort(float vec[], size_t size, unsigned int phase, unsigned int step) {
+    size_t idx = ((size_t) blockDim.x) * blockIdx.x + threadIdx.x;
     if (idx >= size) {
         return;
     }
@@ -69,7 +69,7 @@ int main(int argc, char** argv) {
     cudaEventRecord(start);
     for (unsigned int phase = 1; phase <= k; phase++) {
         for (unsigned int step = phase; step >= 1; step--) {
-            batcherOddEvenSwap<<<numBlocks, NUM_THREADS>>>(gpuVecPtr, size, phase, step);
+            batcherOddEvenSort<<<numBlocks, NUM_THREADS>>>(gpuVecPtr, size, phase, step);
         }
     }
     cudaEventRecord(stop);
