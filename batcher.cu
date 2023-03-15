@@ -28,13 +28,15 @@ __global__ void batcherOddEvenSort(float vec[], size_t size, unsigned int phase,
         size_t scale = 1 << (phase - step);
         size_t box = 1 << step;
         size_t scaledIdx = idx / scale - (idx / scale / box) * box;
-        if (scaledIdx == 0 || scaledIdx == box - 1) {
+        if (scaledIdx == 0 || scaledIdx == box - 1 || scaledIdx % 2 == 0) {
             return;
         }
-        partner = (scaledIdx & 1) == 0 ? idx - scale : idx + scale;
+        partner = idx + scale;
     }
 
-    cmpSwap(vec, idx, partner);
+    if (idx < partner) {
+        cmpSwap(vec, idx, partner);
+    }
 }
 
 int main(int argc, char** argv) {
@@ -68,7 +70,7 @@ int main(int argc, char** argv) {
     cudaEventCreate(&stop);
     cudaEventRecord(start);
     for (unsigned int phase = 1; phase <= k; phase++) {
-        for (unsigned int step = phase; step >= 1; step--) {
+        for (unsigned int step = 1; step <= phase; step++) {
             batcherOddEvenSort<<<numBlocks, NUM_THREADS>>>(gpuVecPtr, size, phase, step);
         }
     }

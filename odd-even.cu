@@ -25,7 +25,7 @@ __global__ void smallOddEvenSort(float vec[], size_t size) {
 
     // n - 1 iterations, alternating odd and even swaps
     for (size_t i = 0; i < size - 1; i++) {
-        if (threadIdx.x < size / 2 && (i & 1) == 0) { // even
+        if (threadIdx.x < size / 2 && i % 2 == 0) { // even
             cmpSwap(sharedVec, 2 * threadIdx.x, 2 * threadIdx.x + 1);
         } else if (threadIdx.x < size / 2 && 2 * threadIdx.x + 2 < size) { // odd
             cmpSwap(sharedVec, 2 * threadIdx.x + 1, 2 * threadIdx.x + 2);
@@ -135,7 +135,7 @@ int main(int argc, char** argv) {
         numBlocks = size / NUM_THREADS;
         size_t iterations = size / (NUM_THREADS / 2) - 1;
         for (size_t i = 0; i < iterations; i++) {
-            bitonicMerge<<<numBlocks, NUM_THREADS>>>(gpuVecPtr, size, (i & 1) == 0);
+            bitonicMerge<<<numBlocks, NUM_THREADS>>>(gpuVecPtr, size, i % 2 == 0);
         }
     }
     cudaEventRecord(stop);

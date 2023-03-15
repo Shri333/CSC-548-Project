@@ -1,4 +1,4 @@
-CXXFLAGS = -dc -O3 -std=c++14 -I. --compiler-options -Wall
+CXXFLAGS = -DDEBUG -dc -O3 -std=c++14 -I. --compiler-options -Wall
 EXECUTABLES = bitonic odd-even batcher
 
 all: $(EXECUTABLES)
