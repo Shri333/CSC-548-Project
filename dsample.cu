@@ -59,6 +59,49 @@ __global__ void sample(float vec[], float samples[]) {
     }
 }
 
+// searches for the index in vec where the given num should be located
+__device__ size_t binarySearch(float vec[], size_t size, float num) {
+    size_t left = 0, right = size - 1;
+    while (left < right) {
+        size_t mid = left + (right - left) / 2; // to avoid overflow
+        if (vec[mid] < num) {
+            left = mid + 1;
+        } else {
+            right = mid;
+        }
+    }
+    return left;
+}
+
+// calculates bucket sizes by indexing each global sample in each subvector
+__global__ void calcBucketSizes(float vec[], float globalSamples[], size_t bucketSizes[]) {
+    size_t idx = ((size_t) blockDim.x) * blockIdx.x + threadIdx.x;
+
+    // copy subvec into shared memory
+    __shared__ float sharedVec[NUM_THREADS];
+    __shared__ size_t sampleIndices[SAMPLE_SIZE];
+    sharedVec[threadIdx.x] = vec[idx];
+    __syncthreads();
+
+    // binary search indices of each global sample in subvec
+    if (threadIdx.x < SAMPLE_SIZE) {
+        size_t sampleIdx = binarySearch(sharedVec, NUM_THREADS, globalSamples[threadIdx.x]);
+        sampleIndices[threadIdx.x] = sampleIdx;
+    }
+    __syncthreads();
+
+    // calculate size of each bucket based on sampleIndices
+    // if (threadIdx.x < SAMPLE_SIZE) {
+    //     if (threadIdx.x == SAMPLE_SIZE - 1) {
+    //         bucketSizes[gridDim.x * threadIdx.x + blockIdx.x] 
+    //             = NUM_THREADS - sampleIndices[SAMPLE_SIZE - 1];
+    //     } else {
+    //         bucketSizes[gridDim.x * threadIdx.x + blockIdx.x] 
+    //             = sampleIndices[threadIdx.x] - sampleIndices[threadIdx.x - 1];
+    //     }
+    // }
+}
+
 int main(int argc, char** argv) {
     if (argc != 2) {
         usage();
@@ -113,10 +156,17 @@ int main(int argc, char** argv) {
         }
 
         // sample globally
-        float globalSamples[SAMPLE_SIZE];
+        thrust::device_vector<float> globalSamples(SAMPLE_SIZE);
+        float* globalSamplesPtr = thrust::raw_pointer_cast(globalSamples.data());
         numBlocks = max((size_t) 1, localSamplesSize / NUM_THREADS);
         numThreads = min(localSamplesSize, (size_t) NUM_THREADS);
-        sample<<<numBlocks, numThreads>>>(localSamplesPtr, globalSamples);
+        sample<<<numBlocks, numThreads>>>(localSamplesPtr, globalSamplesPtr);
+
+        // calculate sizes of buckets (sample indexing)
+        thrust::device_vector<size_t> bucketSizes(localSamplesSize);
+        size_t* bucketSizesPtr = thrust::raw_pointer_cast(bucketSizes.data());
+        numBlocks = size / NUM_THREADS;
+        calcBucketSizes<<<numBlocks, NUM_THREADS>>>(gpuVecPtr, globalSamplesPtr, bucketSizesPtr);
     }
     cudaEventRecord(stop);
 
