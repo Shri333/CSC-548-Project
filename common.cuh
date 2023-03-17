@@ -8,6 +8,9 @@
 // max number of threads per block in CUDA
 #define NUM_THREADS 1024
 
+// log base 2 of NUM_THREADS
+#define LOG_NUM_THREADS 10
+
 // function for generating a random vector of floats
 thrust::host_vector<float> genVec(size_t size);
 

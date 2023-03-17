@@ -10,21 +10,22 @@
 #include "common.cuh"
 using namespace std;
 
+// sample size for sample sort (should be a power of 2 and an even divisor of NUM_THREADS)
+#define SAMPLE_SIZE 64
+
+// log base 2 of sample size
+#define LOG_SAMPLE_SIZE 6
+
 void usage() {
     cout << "usage: dsample [k]" << endl;
     cout << "where 2^k is the size of the vector to generate for sorting" << endl;
     exit(1);
 }
 
-// special case if vec's size is less than NUM_THREADS
-__global__ void smallBitonicSort(float vec[], unsigned int k) {
-    size_t size = 1 << k;
-    for (unsigned int phase = 1; phase <= k; phase++) {
-        for (unsigned int step = phase; step >= 1; step--) {
-            bitonicSwap(vec, size, phase, step, threadIdx.x);
-            __syncthreads();
-        }
-    }
+// kernel for sorting with bitonic sort
+__global__ void bitonicSort(float vec[], size_t size, unsigned int phase, unsigned int step) {
+    size_t idx = ((size_t) blockDim.x) * blockIdx.x + threadIdx.x;
+    bitonicSwap(vec, size, phase, step, idx);
 }
 
 // sort a partition of the global vector on each block using bitonic sort
@@ -37,7 +38,7 @@ __global__ void localBitonicSort(float vec[], size_t size) {
     __syncthreads();
 
     // bitonic sort this sub-vector/partition
-    for (unsigned int phase = 1; phase <= 10; phase++) {
+    for (unsigned int phase = 1; phase <= LOG_NUM_THREADS; phase++) {
         for (unsigned int step = phase; step >= 1; step--) {
             if (threadIdx.x < NUM_THREADS / 2) {
                 bitonicSwap(sharedVec, NUM_THREADS, phase, step, threadIdx.x);
@@ -48,6 +49,14 @@ __global__ void localBitonicSort(float vec[], size_t size) {
 
     // copy sorted sub-vector back into vec
     vec[idx] = sharedVec[threadIdx.x];
+}
+
+// samples equidistant values from each subvec of vec and puts them into localSamples
+__global__ void sampleLocal(float vec[], float localSamples[]) {
+    size_t idx = ((size_t) blockDim.x) * blockIdx.x + threadIdx.x;
+    if (idx % SAMPLE_SIZE == 0) {
+        localSamples[idx / SAMPLE_SIZE] = vec[idx];
+    }
 }
 
 int main(int argc, char** argv) {
@@ -77,12 +86,31 @@ int main(int argc, char** argv) {
     cudaEventCreate(&stop);
     cudaEventRecord(start);
     if (size <= NUM_THREADS) {
-        // special case: we can sort the entire vector in one block
-        smallBitonicSort<<<1, size / 2>>>(gpuVecPtr, k);
+        // sort the vector with bitonic sort instead when the vector is small enough
+        for (unsigned int phase = 1; phase <= k; phase++) {
+            for (unsigned int step = phase; step >= 1; step--) {
+                bitonicSort<<<1, size / 2>>>(gpuVecPtr, size, phase, step);
+            }
+        }
     } else {
-        // sort a partition of the vector on each block w/ bitonic sort
+        // sort a partition of the vector (subvec) on each block w/ bitonic sort
         size_t numBlocks = size / NUM_THREADS;
         localBitonicSort<<<numBlocks, NUM_THREADS>>>(gpuVecPtr, size);
+
+        // sample locally
+        size_t localSamplesSize = numBlocks * SAMPLE_SIZE;
+        thrust::device_vector<float> localSamples(localSamplesSize);
+        float* localSamplesPtr = thrust::raw_pointer_cast(localSamples.data());
+        sampleLocal<<<numBlocks, NUM_THREADS>>>(gpuVecPtr, localSamplesPtr);
+
+        // sort local samples with bitonic sort
+        numBlocks = max((size_t) 1, (localSamplesSize / 2) / NUM_THREADS);
+        size_t numThreads = min(localSamplesSize / 2, (size_t) NUM_THREADS);
+        for (unsigned int phase = 1; phase <= k - LOG_NUM_THREADS + LOG_SAMPLE_SIZE; phase++) {
+            for (unsigned int step = phase; step >= 1; step--) {
+                bitonicSort<<<numBlocks, numThreads>>>(localSamplesPtr, localSamplesSize, phase, step);
+            }
+        }
     }
     cudaEventRecord(stop);
 

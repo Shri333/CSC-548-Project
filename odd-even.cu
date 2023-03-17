@@ -47,7 +47,7 @@ __global__ void localBitonicSort(float vec[], size_t size) {
     __syncthreads();
 
     // bitonic sort this sub-vector/partition
-    for (unsigned int phase = 1; phase <= 9; phase++) {
+    for (unsigned int phase = 1; phase <= LOG_NUM_THREADS - 1; phase++) {
         for (unsigned int step = phase; step >= 1; step--) {
             if (threadIdx.x < NUM_THREADS / 4) {
                 bitonicSwap(sharedVec, NUM_THREADS / 2, phase, step, threadIdx.x);
@@ -77,7 +77,7 @@ __global__ void bitonicMerge(float vec[], size_t size, bool even) {
     __syncthreads();
 
     // merge two sorted partitions
-    for (unsigned int phase = 1; phase <= 10; phase++) {
+    for (unsigned int phase = 1; phase <= LOG_NUM_THREADS; phase++) {
         for (unsigned int step = phase; step >= 1; step--) {
             if (threadIdx.x < NUM_THREADS / 2) {
                 bitonicSwap(sharedVec, NUM_THREADS, phase, step, threadIdx.x);
