@@ -51,11 +51,11 @@ __global__ void localBitonicSort(float vec[], size_t size) {
     vec[idx] = sharedVec[threadIdx.x];
 }
 
-// samples equidistant values from each subvec of vec and puts them into localSamples
-__global__ void sampleLocal(float vec[], float localSamples[]) {
+// sample equidistant values from vec into samples
+__global__ void sample(float vec[], float samples[]) {
     size_t idx = ((size_t) blockDim.x) * blockIdx.x + threadIdx.x;
     if (idx % SAMPLE_SIZE == 0) {
-        localSamples[idx / SAMPLE_SIZE] = vec[idx];
+        samples[idx / SAMPLE_SIZE] = vec[idx];
     }
 }
 
@@ -101,7 +101,7 @@ int main(int argc, char** argv) {
         size_t localSamplesSize = numBlocks * SAMPLE_SIZE;
         thrust::device_vector<float> localSamples(localSamplesSize);
         float* localSamplesPtr = thrust::raw_pointer_cast(localSamples.data());
-        sampleLocal<<<numBlocks, NUM_THREADS>>>(gpuVecPtr, localSamplesPtr);
+        sample<<<numBlocks, NUM_THREADS>>>(gpuVecPtr, localSamplesPtr);
 
         // sort local samples with bitonic sort
         numBlocks = max((size_t) 1, (localSamplesSize / 2) / NUM_THREADS);
@@ -111,6 +111,12 @@ int main(int argc, char** argv) {
                 bitonicSort<<<numBlocks, numThreads>>>(localSamplesPtr, localSamplesSize, phase, step);
             }
         }
+
+        // sample globally
+        float globalSamples[SAMPLE_SIZE];
+        numBlocks = max((size_t) 1, localSamplesSize / NUM_THREADS);
+        numThreads = min(localSamplesSize, (size_t) NUM_THREADS);
+        sample<<<numBlocks, numThreads>>>(localSamplesPtr, globalSamples);
     }
     cudaEventRecord(stop);
 
