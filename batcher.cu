@@ -3,6 +3,7 @@
 // author: Shrihan Dadi (sdadi2)
 #include <iostream>
 #include <sstream>
+#include <algorithm>
 #include <cuda_runtime.h>
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
@@ -18,9 +19,6 @@ void usage() {
 // kernel for batcher's sorting network swaps
 __global__ void batcherOddEvenSort(float vec[], size_t size, unsigned int phase, unsigned int step) {
     size_t idx = ((size_t) blockDim.x) * blockIdx.x + threadIdx.x;
-    if (idx >= size) {
-        return;
-    }
 
     // partner calculation algorithm based on https://gist.github.com/Bekbolatov/c8e42f5fcaa36db38402
     size_t partner = idx ^ (1 << (phase - 1));
@@ -59,10 +57,8 @@ int main(int argc, char** argv) {
     cout << "Sorting vector of size " << size << "..." << endl;
     thrust::device_vector<float> gpuVec = vec;
     float* gpuVecPtr = thrust::raw_pointer_cast(gpuVec.data());
-    size_t numBlocks = size / NUM_THREADS;
-    if (size % NUM_THREADS != 0) {
-        numBlocks++;
-    }
+    size_t numBlocks = max((size_t) 1, size / NUM_THREADS);
+    size_t numThreads = min(size, (size_t) NUM_THREADS);
 
     // time sorting
     cudaEvent_t start, stop;
@@ -71,7 +67,7 @@ int main(int argc, char** argv) {
     cudaEventRecord(start);
     for (unsigned int phase = 1; phase <= k; phase++) {
         for (unsigned int step = 1; step <= phase; step++) {
-            batcherOddEvenSort<<<numBlocks, NUM_THREADS>>>(gpuVecPtr, size, phase, step);
+            batcherOddEvenSort<<<numBlocks, numThreads>>>(gpuVecPtr, size, phase, step);
         }
     }
     cudaEventRecord(stop);

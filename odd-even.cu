@@ -40,9 +40,6 @@ __global__ void smallOddEvenSort(float vec[], size_t size) {
 // sort a partition of the global vector on each block using bitonic sort
 __global__ void localBitonicSort(float vec[], size_t size) {
     size_t idx = ((size_t) blockDim.x) * blockIdx.x + threadIdx.x;
-    if (idx >= size) {
-        return;
-    }
 
     // copy partition of vector into shared memory
     __shared__ float sharedVec[NUM_THREADS / 2];
@@ -66,7 +63,7 @@ __global__ void localBitonicSort(float vec[], size_t size) {
 // bitonic merge two sorted subarrays/partitions into one subarray/partition
 __global__ void bitonicMerge(float vec[], size_t size, bool even) {
     size_t idx = ((size_t) blockDim.x) * blockIdx.x + threadIdx.x;
-    if (idx >= size || (!even && idx + NUM_THREADS >= size)) {
+    if (!even && idx + NUM_THREADS >= size) {
         return;
     }
 

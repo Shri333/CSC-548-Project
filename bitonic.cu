@@ -19,9 +19,6 @@ void usage() {
 // kernel for normalized bitonic sort
 __global__ void bitonicSort(float vec[], size_t size, unsigned int phase, unsigned int step) {
     size_t idx = ((size_t) blockDim.x) * blockIdx.x + threadIdx.x;
-    if (idx >= size / 2) {
-        return;
-    }
     bitonicSwap(vec, size, phase, step, idx);
 }
 
