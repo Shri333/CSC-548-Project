@@ -1,3 +1,7 @@
 *.o
 bitonic
 odd-even
+batcher
+dsample
+samplesort
+.vscode
