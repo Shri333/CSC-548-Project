@@ -14,6 +14,11 @@
 // function for generating a random vector of floats
 thrust::host_vector<float> genVec(size_t size);
 
+// Checks all devices shared memories and return the minimum
+size_t minSharedMemPerBlock();
+
+void checkCudaError();
+
 // compares the values of the elements at the two indices (i and j)
 // and swaps if vec[i] > vec[j]
 __device__ void cmpSwap(float vec[], size_t i, size_t j);
@@ -25,5 +30,5 @@ __device__ void bitonicSwap(float vec[], size_t size, unsigned int phase, unsign
 // function for checking if a vector of floats is sorted or not
 // only used in DEBUG mode
 #ifdef DEBUG
-    bool sorted(const thrust::host_vector<float>& vec);
+bool sorted(const thrust::host_vector<float> &vec);
 #endif
