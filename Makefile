@@ -1,4 +1,4 @@
-CXXFLAGS = -DDEBUG -g -std=c++14 -I. --compiler-options -Wall
+CXXFLAGS = -DDEBUG -dc -O3 -std=c++14 -I. --compiler-options -Wall
 EXECUTABLES = bitonic odd-even batcher dsample samplesort
 
 all: $(EXECUTABLES)
@@ -17,7 +17,6 @@ dsample: dsample.o common.o
 
 samplesort: samplesort.o common.o
 	nvcc -O3 -o $@ $^
-
 bitonic.o: bitonic.cu common.cuh
 	nvcc $(CXXFLAGS) -o $@ -c $<
 
