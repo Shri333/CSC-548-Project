@@ -14,12 +14,13 @@
 #include "common.cuh"
 #define MAX_BLOCK_SIZE 1024
 #define THREADS_PER_BLOCK 256
+#define SEED 1234
 using namespace std;
 
 __global__ void initCurandState(curandState *state)
 {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  curand_init(1234, idx, 0, &state[idx]);
+  curand_init(SEED, idx, 0, &state[idx]);
 }
 
 __global__ void generate_samples(float *samples, const float *data, int data_size, int num_samples, curandState *state)
