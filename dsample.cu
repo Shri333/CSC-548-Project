@@ -7,6 +7,7 @@
 #include <cuda_runtime.h>
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
+#include <thrust/reduce.h>
 #include "common.cuh"
 using namespace std;
 
@@ -91,15 +92,17 @@ __global__ void calcBucketSizes(float vec[], float globalSamples[], size_t bucke
     __syncthreads();
 
     // calculate size of each bucket based on sampleIndices
-    // if (threadIdx.x < SAMPLE_SIZE) {
-    //     if (threadIdx.x == SAMPLE_SIZE - 1) {
-    //         bucketSizes[gridDim.x * threadIdx.x + blockIdx.x] 
-    //             = NUM_THREADS - sampleIndices[SAMPLE_SIZE - 1];
-    //     } else {
-    //         bucketSizes[gridDim.x * threadIdx.x + blockIdx.x] 
-    //             = sampleIndices[threadIdx.x] - sampleIndices[threadIdx.x - 1];
-    //     }
-    // }
+    if (threadIdx.x < SAMPLE_SIZE) {
+        if (threadIdx.x == SAMPLE_SIZE - 1) {
+            bucketSizes[gridDim.x * threadIdx.x + blockIdx.x] 
+                = NUM_THREADS - sampleIndices[SAMPLE_SIZE - 2] - 1;
+        } else if (threadIdx.x == 0) {
+            bucketSizes[gridDim.x * threadIdx.x + blockIdx.x] = sampleIndices[threadIdx.x] + 1;
+        } else {
+            bucketSizes[gridDim.x * threadIdx.x + blockIdx.x] 
+                = sampleIndices[threadIdx.x] - sampleIndices[threadIdx.x - 1];
+        }
+    }
 }
 
 int main(int argc, char** argv) {
