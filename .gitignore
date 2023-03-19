@@ -3,5 +3,7 @@ bitonic
 odd-even
 batcher
 dsample
+mergesort
+rsample
 samplesort
 .vscode
