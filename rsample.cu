@@ -1,4 +1,3 @@
-
 #include <iostream>
 #include <sstream>
 #include <cuda_runtime.h>
@@ -7,20 +6,31 @@
 #include <thrust/adjacent_difference.h>
 #include <thrust/sort.h>
 #include <thrust/copy.h>
+#include <thrust/random.h>
+#include <thrust/transform.h>
+#include <thrust/functional.h>
 #include <thrust/merge.h>
+#include <curand_kernel.h>
 #include "common.cuh"
 #define MAX_BLOCK_SIZE 1024
-#define THREAD_COUNT 256
+#define THREADS_PER_BLOCK 256
+#define SEED 1234
 using namespace std;
 
-__global__ void generate_samples(float *samples, const float *data, int data_size, int num_samples)
+__global__ void initCurandState(curandState *state)
+{
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  curand_init(SEED, idx, 0, &state[idx]);
+}
+
+__global__ void generate_samples(float *samples, const float *data, int data_size, int num_samples, curandState *state)
 {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx >= num_samples)
     return;
 
-  int stride = data_size / num_samples;
-  samples[idx] = data[idx * stride];
+  int randIndex = curand(&state[idx]) % data_size;
+  samples[idx] = data[randIndex];
 }
 
 __global__ void partition_data(float *data, const float *pivots, int *bucket_counts, int data_size, int num_pivots)
@@ -51,8 +61,11 @@ int main(int argc, char **argv)
 
   int size = std::stoi(argv[1]);
   thrust::host_vector<float> h_vec = genVec(size);
-  thrust::device_vector<float> d_vec = h_vec;
 
+  // The number of samples is pretty arbitrary so this can be adjusted later
+  int num_samples = static_cast<int>(sqrt(size));
+  thrust::device_vector<float> d_vec(size * (num_samples + 1));
+  thrust::copy(h_vec.begin(), h_vec.end(), d_vec.begin());
   printf("\nUnsorted:\n");
   for (size_t i = 0; i < h_vec.size(); ++i)
   {
@@ -66,12 +79,14 @@ int main(int argc, char **argv)
   cudaEventCreate(&stop);
   cudaEventRecord(start);
 
-  // The number of samples is pretty arbitrary so this can be adjusted later
-  int num_samples = static_cast<int>(sqrt(size));
+  thrust::device_vector<curandState> d_curand_states(num_samples);
+  initCurandState<<<(num_samples + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK, THREADS_PER_BLOCK>>>(thrust::raw_pointer_cast(d_curand_states.data()));
+  cudaDeviceSynchronize();
+  checkCudaError();
 
   // device samples
   thrust::device_vector<float> d_samples(num_samples);
-  generate_samples<<<(num_samples + THREAD_COUNT - 1) / THREAD_COUNT, THREAD_COUNT>>>(thrust::raw_pointer_cast(d_samples.data()), thrust::raw_pointer_cast(d_vec.data()), size, num_samples);
+  generate_samples<<<(num_samples + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK, THREADS_PER_BLOCK>>>(thrust::raw_pointer_cast(d_samples.data()), thrust::raw_pointer_cast(d_vec.data()), size, num_samples, thrust::raw_pointer_cast(d_curand_states.data()));
   cudaDeviceSynchronize();
   checkCudaError();
 
@@ -82,7 +97,7 @@ int main(int argc, char **argv)
   thrust::adjacent_difference(d_samples.begin() + 1, d_samples.end(), d_pivots.begin());
   thrust::device_vector<int> d_bucket_counts(num_samples, 0);
 
-  partition_data<<<(size + THREAD_COUNT - 1) / THREAD_COUNT, THREAD_COUNT>>>(thrust::raw_pointer_cast(d_vec.data()), thrust::raw_pointer_cast(d_pivots.data()), thrust::raw_pointer_cast(d_bucket_counts.data()), size, num_samples - 1);
+  partition_data<<<(size + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK, THREADS_PER_BLOCK>>>(thrust::raw_pointer_cast(d_vec.data()), thrust::raw_pointer_cast(d_pivots.data()), thrust::raw_pointer_cast(d_bucket_counts.data()), size, num_samples - 1);
   cudaDeviceSynchronize();
   checkCudaError();
 
