@@ -64,6 +64,9 @@ __global__ void sample(float vec[], size_t size, float samples[], size_t numSamp
 
 // searches for the index in vec where the given num should be located
 __device__ size_t binarySearch(float vec[], size_t size, float num) {
+    if (num > vec[size - 1]) {
+        return size;
+    }
     size_t left = 0, right = size - 1;
     while (left < right) {
         size_t mid = left + (right - left) / 2; // to avoid overflow
@@ -97,9 +100,9 @@ __global__ void calcBucketSizes(float vec[], float globalSamples[], size_t oldBu
     if (threadIdx.x < SAMPLE_SIZE) {
         size_t bucketSize;
         if (threadIdx.x == SAMPLE_SIZE - 1) {
-            bucketSize = NUM_THREADS - sampleIndices[SAMPLE_SIZE - 2] - 1;
+            bucketSize = NUM_THREADS - sampleIndices[SAMPLE_SIZE - 2];
         } else if (threadIdx.x == 0) {
-            bucketSize = sampleIndices[threadIdx.x] + 1;
+            bucketSize = sampleIndices[threadIdx.x];
         } else {
             bucketSize = sampleIndices[threadIdx.x] - sampleIndices[threadIdx.x - 1];
         }
