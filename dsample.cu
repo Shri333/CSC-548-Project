@@ -8,6 +8,7 @@
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
 #include <thrust/scan.h>
+#include <thrust/sort.h>
 #include "common.cuh"
 using namespace std;
 
@@ -76,7 +77,7 @@ __device__ size_t binarySearch(float vec[], size_t size, float num) {
 }
 
 // calculates bucket sizes by indexing each global sample in each subvector
-__global__ void calcBucketSizes(float vec[], float globalSamples[], size_t bucketSizes[]) {
+__global__ void calcBucketSizes(float vec[], float globalSamples[], size_t oldBucketIndices[], size_t newBucketIndices[]) {
     size_t idx = ((size_t) blockDim.x) * blockIdx.x + threadIdx.x;
 
     // copy subvec into shared memory
@@ -94,15 +95,36 @@ __global__ void calcBucketSizes(float vec[], float globalSamples[], size_t bucke
 
     // calculate size of each bucket based on sampleIndices
     if (threadIdx.x < SAMPLE_SIZE) {
+        size_t bucketSize;
         if (threadIdx.x == SAMPLE_SIZE - 1) {
-            bucketSizes[gridDim.x * threadIdx.x + blockIdx.x] 
-                = NUM_THREADS - sampleIndices[SAMPLE_SIZE - 2] - 1;
+            bucketSize = NUM_THREADS - sampleIndices[SAMPLE_SIZE - 2] - 1;
         } else if (threadIdx.x == 0) {
-            bucketSizes[gridDim.x * threadIdx.x + blockIdx.x] = sampleIndices[threadIdx.x] + 1;
+            bucketSize = sampleIndices[threadIdx.x] + 1;
         } else {
-            bucketSizes[gridDim.x * threadIdx.x + blockIdx.x] 
-                = sampleIndices[threadIdx.x] - sampleIndices[threadIdx.x - 1];
+            bucketSize = sampleIndices[threadIdx.x] - sampleIndices[threadIdx.x - 1];
         }
+        oldBucketIndices[SAMPLE_SIZE * blockIdx.x + threadIdx.x] = bucketSize;
+        newBucketIndices[gridDim.x * threadIdx.x + blockIdx.x] = bucketSize;
+    }
+}
+
+// move buckets to correct spots in vector
+__global__ void relocateBuckets(
+    float vec[], float newVec[], size_t size,
+    size_t oldBucketIndices[], size_t newBucketIndices[], size_t sampleBarriers[]) {
+    size_t oldIdx = ((size_t) blockDim.x) * blockIdx.x + threadIdx.x;
+    size_t numSubVecs = size / NUM_THREADS;
+    size_t subVecIdx = oldIdx / SAMPLE_SIZE, splitIdx = oldIdx % SAMPLE_SIZE;
+    size_t newIdx = splitIdx * numSubVecs + subVecIdx;
+    if (newIdx % numSubVecs == 0) {
+        sampleBarriers[newIdx / numSubVecs] = newBucketIndices[newIdx];
+    }
+
+    size_t numBuckets = numSubVecs * SAMPLE_SIZE;
+    size_t start = oldBucketIndices[oldIdx];
+    size_t end = oldIdx == numBuckets - 1 ? size : oldBucketIndices[oldIdx + 1];
+    for (int i = start; i < end; i++) {
+        newVec[newBucketIndices[newIdx] + i - start] = vec[i];
     }
 }
 
@@ -166,15 +188,38 @@ int main(int argc, char** argv) {
         numThreads = min(localSamplesSize, (size_t) NUM_THREADS);
         sample<<<numBlocks, numThreads>>>(localSamplesPtr, localSamplesSize, globalSamplesPtr, SAMPLE_SIZE);
 
-        // calculate sizes of buckets (sample indexing)
-        thrust::device_vector<size_t> bucketSizes(localSamplesSize);
-        size_t* bucketSizesPtr = thrust::raw_pointer_cast(bucketSizes.data());
+        // calculate sizes and indices of buckets (sample indexing)
+        thrust::device_vector<size_t> oldBucketIndices(localSamplesSize), newBucketIndices(localSamplesSize);
+        size_t* oldBucketIndicesPtr = thrust::raw_pointer_cast(oldBucketIndices.data());
+        size_t* newBucketIndicesPtr = thrust::raw_pointer_cast(newBucketIndices.data());
         numBlocks = size / NUM_THREADS;
-        calcBucketSizes<<<numBlocks, NUM_THREADS>>>(gpuVecPtr, globalSamplesPtr, bucketSizesPtr);
+        calcBucketSizes<<<numBlocks, NUM_THREADS>>>(gpuVecPtr, globalSamplesPtr, oldBucketIndicesPtr, newBucketIndicesPtr);
 
-        // parallel prefix sum to calculate bucket indices
-        thrust::device_vector<size_t> bucketIndices(localSamplesSize);
-        thrust::exclusive_scan(thrust::device, bucketSizes.begin(), bucketSizes.end(), bucketIndices.begin());
+        // parallel prefix sum to calculate old/new bucket indices
+        thrust::exclusive_scan(thrust::device, oldBucketIndices.begin(), oldBucketIndices.end(), oldBucketIndices.begin());
+        thrust::exclusive_scan(thrust::device, newBucketIndices.begin(), newBucketIndices.end(), newBucketIndices.begin());
+
+        // relocate buckets to correct spot in new vec
+        thrust::device_vector<float> newGpuVec(size);
+        float* newGpuVecPtr = thrust::raw_pointer_cast(newGpuVec.data());
+        thrust::device_vector<size_t> barriers(SAMPLE_SIZE);
+        size_t* barriersPtr = thrust::raw_pointer_cast(barriers.data());
+        numBlocks = max((size_t) 1, localSamplesSize / NUM_THREADS);
+        numThreads = min(localSamplesSize, (size_t) NUM_THREADS);
+        relocateBuckets<<<numBlocks, numThreads>>>(
+            gpuVecPtr, newGpuVecPtr, size,
+            oldBucketIndicesPtr, newBucketIndicesPtr, barriersPtr);
+
+        // sort each of the combined sub-vectors
+        gpuVec = newGpuVec;
+        thrust::host_vector<size_t> cpuBarriers = barriers;
+        for (size_t i = 0; i < SAMPLE_SIZE; i++) {
+            if (i == SAMPLE_SIZE - 1) {
+                thrust::sort(gpuVec.begin() + cpuBarriers[i], gpuVec.end());
+            } else {
+                thrust::sort(gpuVec.begin() + cpuBarriers[i], gpuVec.begin() + cpuBarriers[i + 1]);
+            }
+        }
     }
     cudaEventRecord(stop);
 
