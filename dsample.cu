@@ -7,7 +7,7 @@
 #include <cuda_runtime.h>
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
-#include <thrust/reduce.h>
+#include <thrust/scan.h>
 #include "common.cuh"
 using namespace std;
 
@@ -53,10 +53,11 @@ __global__ void localBitonicSort(float vec[], size_t size) {
 }
 
 // sample equidistant values from vec into samples
-__global__ void sample(float vec[], float samples[]) {
+__global__ void sample(float vec[], size_t size, float samples[], size_t numSamples) {
     size_t idx = ((size_t) blockDim.x) * blockIdx.x + threadIdx.x;
-    if (idx % SAMPLE_SIZE == 0) {
-        samples[idx / SAMPLE_SIZE] = vec[idx];
+    size_t divisor = size / numSamples;
+    if (idx % divisor == 0) {
+        samples[idx / divisor] = vec[idx];
     }
 }
 
@@ -147,7 +148,7 @@ int main(int argc, char** argv) {
         size_t localSamplesSize = numBlocks * SAMPLE_SIZE;
         thrust::device_vector<float> localSamples(localSamplesSize);
         float* localSamplesPtr = thrust::raw_pointer_cast(localSamples.data());
-        sample<<<numBlocks, NUM_THREADS>>>(gpuVecPtr, localSamplesPtr);
+        sample<<<numBlocks, NUM_THREADS>>>(gpuVecPtr, size, localSamplesPtr, localSamplesSize);
 
         // sort local samples with bitonic sort
         numBlocks = max((size_t) 1, (localSamplesSize / 2) / NUM_THREADS);
@@ -163,13 +164,17 @@ int main(int argc, char** argv) {
         float* globalSamplesPtr = thrust::raw_pointer_cast(globalSamples.data());
         numBlocks = max((size_t) 1, localSamplesSize / NUM_THREADS);
         numThreads = min(localSamplesSize, (size_t) NUM_THREADS);
-        sample<<<numBlocks, numThreads>>>(localSamplesPtr, globalSamplesPtr);
+        sample<<<numBlocks, numThreads>>>(localSamplesPtr, localSamplesSize, globalSamplesPtr, SAMPLE_SIZE);
 
         // calculate sizes of buckets (sample indexing)
         thrust::device_vector<size_t> bucketSizes(localSamplesSize);
         size_t* bucketSizesPtr = thrust::raw_pointer_cast(bucketSizes.data());
         numBlocks = size / NUM_THREADS;
         calcBucketSizes<<<numBlocks, NUM_THREADS>>>(gpuVecPtr, globalSamplesPtr, bucketSizesPtr);
+
+        // parallel prefix sum to calculate bucket indices
+        thrust::device_vector<size_t> bucketIndices(localSamplesSize);
+        thrust::exclusive_scan(thrust::device, bucketSizes.begin(), bucketSizes.end(), bucketIndices.begin());
     }
     cudaEventRecord(stop);
 
