@@ -20,6 +20,7 @@ rsample: rsample.o common.o
 
 mergesort: mergesort.o common.o
 	nvcc -O3 -o $@ $^
+
 bitonic.o: bitonic.cu common.cuh
 	nvcc $(CXXFLAGS) -o $@ -c $<
 
