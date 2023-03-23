@@ -124,6 +124,7 @@ int main(int argc, char **argv)
   }
 
   thrust::copy(d_sorted.begin(), d_sorted.end(), h_vec.begin());
+  cudaEventRecord(stop);
 
   printf("\nSorted: \n");
   for (size_t i = 0; i < h_vec.size(); ++i)

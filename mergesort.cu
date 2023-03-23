@@ -87,11 +87,6 @@ int main(int argc, char **argv)
   thrust::device_vector<float> device_vec(size);
   thrust::copy(host_vec.begin(), host_vec.end(), device_vec.begin());
 
-  printf("\nUnsorted:\n");
-  for (size_t i = 0; i < host_vec.size(); ++i)
-  {
-    printf("\t%f", host_vec[i]);
-  }
   printf("\n");
   cout << "Sorting vector of size " << size << "..." << endl;
 
@@ -107,13 +102,6 @@ int main(int argc, char **argv)
   checkCudaError();
 
   thrust::copy(device_vec.begin(), device_vec.end(), host_vec.begin());
-
-  printf("\nSorted: \n");
-  for (size_t i = 0; i < host_vec.size(); ++i)
-  {
-    printf("\t%f", host_vec[i]);
-  }
-  printf("\n");
 
   float milliseconds;
   cudaEventElapsedTime(&milliseconds, start, stop);

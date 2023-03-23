@@ -1,5 +1,5 @@
 CXXFLAGS = -DDEBUG -dc -O3 -std=c++14 -I. --compiler-options -Wall
-EXECUTABLES = bitonic odd-even batcher dsample rsample mergesort
+EXECUTABLES = bitonic odd-even batcher dsample rsample mergesort quicksort
 
 all: $(EXECUTABLES)
 
@@ -21,6 +21,9 @@ rsample: rsample.o common.o
 mergesort: mergesort.o common.o
 	nvcc -O3 -o $@ $^
 
+quicksort: quicksort.o common.o
+	nvcc -O3 -o $@ $^
+
 bitonic.o: bitonic.cu common.cuh
 	nvcc $(CXXFLAGS) -o $@ -c $<
 
@@ -37,6 +40,9 @@ rsample.o: rsample.cu common.cuh
 	nvcc $(CXXFLAGS) -o $@ -c $<
 
 mergesort.o: mergesort.cu common.cuh
+	nvcc $(CXXFLAGS) -o $@ -c $<
+
+quicksort.o: quicksort.cu common.cuh
 	nvcc $(CXXFLAGS) -o $@ -c $<
 
 common.o: common.cu common.cuh
