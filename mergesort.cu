@@ -87,7 +87,6 @@ int main(int argc, char **argv)
   thrust::device_vector<float> device_vec(size);
   thrust::copy(host_vec.begin(), host_vec.end(), device_vec.begin());
 
-  printf("\n");
   cout << "Sorting vector of size " << size << "..." << endl;
 
   cudaEvent_t start, stop;

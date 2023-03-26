@@ -8,7 +8,6 @@
 #include <thrust/sort.h>
 #include "common.cuh"
 #define THREADS_PER_BLOCK 256
-
 using namespace std;
 
 __device__ void swap(float *arr, int index_a, int index_b)
@@ -81,7 +80,6 @@ int main(int argc, char **argv)
   thrust::device_vector<float> device_vec(size);
   thrust::copy(host_vec.begin(), host_vec.end(), device_vec.begin());
 
-  printf("\n");
   cout << "Sorting vector of size " << size << "..." << endl;
 
   cudaEvent_t start, stop;
@@ -104,7 +102,7 @@ int main(int argc, char **argv)
 
 #ifdef DEBUG
   if (!sorted(host_vec))
-    cout << "vec is not sorted!" << endl;
+    cout << "vect is not sorted!" << endl;
 #endif
   return 0;
 }

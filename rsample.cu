@@ -60,18 +60,12 @@ int main(int argc, char **argv)
   }
 
   int size = std::stoi(argv[1]);
-  thrust::host_vector<float> h_vec = genVec(size);
+  thrust::host_vector<float> host_vec = genVec(size);
 
   // The number of samples is pretty arbitrary so this can be adjusted later
   int num_samples = static_cast<int>(sqrt(size));
-  thrust::device_vector<float> d_vec(size * (num_samples + 1));
-  thrust::copy(h_vec.begin(), h_vec.end(), d_vec.begin());
-  printf("\nUnsorted:\n");
-  for (size_t i = 0; i < h_vec.size(); ++i)
-  {
-    printf("\t%f", h_vec[i]);
-  }
-  printf("\n");
+  thrust::device_vector<float> device_vec(size * (num_samples + 1));
+  thrust::copy(host_vec.begin(), host_vec.end(), device_vec.begin());
   cout << "Sorting vector of size " << size << "..." << endl;
 
   cudaEvent_t start, stop;
@@ -86,7 +80,7 @@ int main(int argc, char **argv)
 
   // device samples
   thrust::device_vector<float> d_samples(num_samples);
-  generate_samples<<<(num_samples + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK, THREADS_PER_BLOCK>>>(thrust::raw_pointer_cast(d_samples.data()), thrust::raw_pointer_cast(d_vec.data()), size, num_samples, thrust::raw_pointer_cast(d_curand_states.data()));
+  generate_samples<<<(num_samples + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK, THREADS_PER_BLOCK>>>(thrust::raw_pointer_cast(d_samples.data()), thrust::raw_pointer_cast(device_vec.data()), size, num_samples, thrust::raw_pointer_cast(d_curand_states.data()));
   cudaDeviceSynchronize();
   checkCudaError();
 
@@ -96,12 +90,12 @@ int main(int argc, char **argv)
   thrust::device_vector<float> d_pivots(num_samples - 1);
   thrust::adjacent_difference(d_samples.begin() + 1, d_samples.end(), d_pivots.begin());
   thrust::device_vector<int> d_bucket_counts(num_samples, 0);
-
-  partition_data<<<(size + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK, THREADS_PER_BLOCK>>>(thrust::raw_pointer_cast(d_vec.data()), thrust::raw_pointer_cast(d_pivots.data()), thrust::raw_pointer_cast(d_bucket_counts.data()), size, num_samples - 1);
+  int num_blocks_per_grid = (size + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
+  partition_data<<<num_blocks_per_grid, THREADS_PER_BLOCK>>>(thrust::raw_pointer_cast(device_vec.data()), thrust::raw_pointer_cast(d_pivots.data()), thrust::raw_pointer_cast(d_bucket_counts.data()), size, num_samples - 1);
   cudaDeviceSynchronize();
   checkCudaError();
 
-  float *data_ptr = thrust::raw_pointer_cast(d_vec.data()) + size;
+  float *data_ptr = thrust::raw_pointer_cast(device_vec.data()) + size;
   for (int i = 0; i < num_samples; ++i)
   {
     int bucket_size = d_bucket_counts[i];
@@ -123,17 +117,8 @@ int main(int argc, char **argv)
     sorted_data_end = new_sorted_data_end;
   }
 
-  thrust::copy(d_sorted.begin(), d_sorted.end(), h_vec.begin());
+  thrust::copy(d_sorted.begin(), d_sorted.end(), host_vec.begin());
   cudaEventRecord(stop);
-
-  printf("\nSorted: \n");
-  for (size_t i = 0; i < h_vec.size(); ++i)
-  {
-    printf("\t%f", h_vec[i]);
-  }
-  printf("\n");
-
-  // get time to sort
   cudaEventSynchronize(stop);
   float milliseconds;
   cudaEventElapsedTime(&milliseconds, start, stop);
@@ -142,7 +127,7 @@ int main(int argc, char **argv)
   cout << "Time: " << milliseconds << " ms" << endl;
 
 #ifdef DEBUG
-  if (!sorted(h_vec))
+  if (!sorted(host_vec))
     cout << "vec is not sorted!" << endl;
 #endif
   return 0;
