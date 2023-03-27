@@ -18,7 +18,6 @@ using namespace std;
  * @param arr The input float array
  * @param int_arr The output float array
  * @param size the number of elements in the input array
- * @return __global__
  */
 __global__ void float_to_int(float *arr, int *int_arr, int size)
 {
@@ -35,7 +34,6 @@ __global__ void float_to_int(float *arr, int *int_arr, int size)
  * @param int_arr The sorted integer array
  * @param arr The sorted float array
  * @param size The number of elements in the sorted integer array
- * @return __global__
  */
 __global__ void int_to_float(int *int_arr, float *arr, int size)
 {
@@ -95,11 +93,10 @@ __global__ void countingsort(int *arr, int *output, int *count, int size, int ex
 }
 
 /**
- * @brief
+ * @brief Performs radix sort on array of floating point values
  *
- * @param arr
- * @param size
- * @return __host__
+ * @param arr the array of floats
+ * @param size the number of elements in the array
  */
 __host__ void radixsort(float *arr, int size)
 {
@@ -145,7 +142,7 @@ __host__ void radixsort(float *arr, int size)
  *
  * @param argc number of program arguments
  * @param argv array of program arguments
- * @return int status code
+ * @return int exit status code
  */
 int main(int argc, char **argv)
 {
@@ -178,4 +175,3 @@ int main(int argc, char **argv)
 #endif
   return 0;
 }
-GIT 
