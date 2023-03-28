@@ -6,5 +6,6 @@ dsample
 mergesort
 rsample
 samplesort
+radixsort
 quicksort
 .vscode

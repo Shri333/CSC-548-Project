@@ -17,6 +17,13 @@
 #define SEED 1234
 using namespace std;
 
+void usage()
+{
+  cout << "usage: rsample [k]" << endl;
+  cout << "where 2^k is the size of the vector to generate for sorting" << endl;
+  exit(1);
+}
+
 __global__ void initCurandState(curandState *state)
 {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -59,7 +66,15 @@ int main(int argc, char **argv)
     exit(EXIT_FAILURE);
   }
 
-  int size = std::stoi(argv[1]);
+  istringstream ss(argv[1]);
+  unsigned int k;
+  if (!(ss >> k) || k > sizeof(size_t) * 8 - 1)
+  {
+    usage();
+  }
+
+  // generate vector
+  size_t size = 1 << k;
   thrust::host_vector<float> host_vec = genVec(size);
 
   // The number of samples is pretty arbitrary so this can be adjusted later
