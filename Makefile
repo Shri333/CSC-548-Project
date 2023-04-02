@@ -1,5 +1,7 @@
-CXXFLAGS = -DDEBUG -dc -O3 -std=c++14 -I. --extended-lambda --compiler-options -Wall
+CXXFLAGS = -DDEBUG -dc -O3 -std=c++14 -I. --compiler-options -Wall
 EXECUTABLES = bitonic odd-even batcher dsample rsample mergesort quicksort radixsort
+RXFLAGS = -DDEBUG
+
 
 all: $(EXECUTABLES)
 
@@ -25,7 +27,7 @@ quicksort: quicksort.o common.o
 	nvcc -O3 -o $@ $^
 
 radixsort: radixsort.o common.o
-	nvcc --extended-lambda -O3 -o $@ $^
+	nvcc -O2 -o $@ $^
 
 bitonic.o: bitonic.cu common.cuh
 	nvcc $(CXXFLAGS) -o $@ -c $<
@@ -49,7 +51,7 @@ quicksort.o: quicksort.cu common.cuh
 	nvcc $(CXXFLAGS) -o $@ -c $<
 
 radixsort.o: radixsort.cu common.cuh
-	nvcc $(CXXFLAGS) -o $@ -c $<
+	nvcc ${RXFLAGS} -o $@ -c $<
 
 common.o: common.cu common.cuh
 	nvcc $(CXXFLAGS) -o $@ -c $<
