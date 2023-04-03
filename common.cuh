@@ -31,4 +31,5 @@ __device__ void bitonicSwap(float vec[], size_t size, unsigned int phase, unsign
 // only used in DEBUG mode
 #ifdef DEBUG
 bool sorted(const thrust::host_vector<float> &vec);
+bool isSorted(uint32_t *vec, int n);
 #endif

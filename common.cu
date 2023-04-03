@@ -123,4 +123,20 @@ bool sorted(const thrust::host_vector<float> &vec)
     }
     return res;
 }
+
+bool isSorted(uint32_t *vec, int n)
+{
+    bool res = true;
+
+    for (int i = 0; i < n - 1; i++)
+    {
+        if (vec[i] > vec[i + 1])
+        {
+            cout << "> Index: " << i << "; Value: " << vec[i] << endl;
+            cout << "< Index: " << i + 1 << "; Value: " << vec[i + 1] << endl;
+            res = false;
+        }
+    }
+    return res;
+}
 #endif

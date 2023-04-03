@@ -2,6 +2,9 @@
 #include <vector>
 #include <algorithm>
 #include <ctime>
+#include <thrust/scan.h>
+#include <sstream>
+
 #include <cuda_runtime.h>
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
@@ -9,6 +12,13 @@
 #include "common.cuh"
 #define THREADS_PER_BLOCK 256
 using namespace std;
+
+void usage()
+{
+  cout << "usage: quicksort [k]" << endl;
+  cout << "where 2^k is the size of the vector to generate for sorting" << endl;
+  exit(1);
+}
 
 /**
  * @brief Device helper function to swap elements in an array
@@ -111,13 +121,16 @@ void quicksort(float *arr, int size)
  */
 int main(int argc, char **argv)
 {
-  if (argc != 2)
+  // read k from argv[1] where 2^k is the size of the vector to generate
+  istringstream ss(argv[1]);
+  unsigned int k;
+  if (!(ss >> k) || k > sizeof(size_t) * 8 - 1)
   {
-    std::cerr << "Usage: samplesort <size>" << std::endl;
-    exit(EXIT_FAILURE);
+    usage();
   }
 
-  int size = std::stoi(argv[1]);
+  // generate vector
+  size_t size = 1 << k;
   thrust::host_vector<float> host_vec = genVec(size);
   thrust::device_vector<float> device_vec(size);
   thrust::copy(host_vec.begin(), host_vec.end(), device_vec.begin());
