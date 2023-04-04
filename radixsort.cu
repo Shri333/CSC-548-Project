@@ -486,8 +486,9 @@ int main(int argc, char **argv)
     uint32_t *in = (uint32_t *)malloc(bytes);
     uint32_t *out = (uint32_t *)malloc(bytes);
     for (int i = 0; i < n; i++)
+    {
         in[i] = rand();
-
+    }
     cout << "Sorting vector of size " << n << "..." << endl;
 
     cudaEvent_t start, stop;
@@ -498,6 +499,7 @@ int main(int argc, char **argv)
     radixsort(in, n, out);
 
     cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
     checkCudaError();
 
     float milliseconds;
