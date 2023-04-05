@@ -51,7 +51,7 @@ quicksort.o: quicksort.cu common.cuh
 	nvcc $(CXXFLAGS) -o $@ -c $<
 
 radixsort.o: radixsort.cu common.cuh
-	nvcc ${RXFLAGS} -o $@ -c $<
+	nvcc $(CXXFLAGS)  -o $@ -c $<
 
 common.o: common.cu common.cuh
 	nvcc $(CXXFLAGS) -o $@ -c $<

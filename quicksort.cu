@@ -1,16 +1,10 @@
-#include <iostream>
-#include <vector>
-#include <algorithm>
-#include <ctime>
-#include <thrust/scan.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <stdint.h>
 #include <sstream>
-
-#include <cuda_runtime.h>
-#include <thrust/host_vector.h>
-#include <thrust/device_vector.h>
-#include <thrust/sort.h>
+#include <iostream>
 #include "common.cuh"
-#define THREADS_PER_BLOCK 256
 using namespace std;
 
 void usage()
@@ -20,108 +14,110 @@ void usage()
   exit(1);
 }
 
-/**
- * @brief Device helper function to swap elements in an array
- *
- * @param arr array of floating point values
- * @param index_a the position of the element to swap with the value at index_b
- * @param index_b the position of the element to swap with the value at index_a
- */
-__device__ void swap(float *arr, int index_a, int index_b)
+__global__ void partition(int *arr, int *low, int *high, int n, int *out_low, int *out_high, int *new_size)
 {
-  float temp = arr[index_a];
-  arr[index_a] = arr[index_b];
-  arr[index_b] = temp;
-}
+  int pos = blockIdx.x * blockDim.x + threadIdx.x;
 
-/**
- * @brief Reorders elements less than pivot to the left of the pivot
- * and elements greater than the pivot to the right for the given partition.
- * The input array values are randomly generated so always choosing
- * the rightmost element is equivalent to taking a random partition
- * @param arr the array to reorder
- * @param left the left most index of the subarray to partition
- * @param right the right most index of the subarray to partition
- * @return __device__
- */
-__device__ int device_partition(float *arr, int left, int right)
-{
-  float pivot = arr[right];
-  int i = left - 1;
-  for (int k = left; k <= right; ++k)
+  if (pos < n)
   {
-    if (arr[k] < pivot)
+    int hi = high[pos];
+    int lo = low[pos];
+    int pivot = arr[hi];
+    int i = (lo - 1);
+    int temp;
+    for (int j = lo; j <= hi - 1; j++)
     {
-      swap(arr, ++i, k);
+      if (arr[j] <= pivot)
+      {
+        i++;
+        temp = arr[i];
+        arr[i] = arr[j];
+        arr[j] = temp;
+      }
+    }
+    temp = arr[i + 1];
+    arr[i + 1] = arr[hi];
+    arr[hi] = temp;
+    int p = (i + 1);
+
+    if (p - 1 > lo)
+    {
+      int ind = atomicAdd(new_size, 1);
+      out_low[ind] = lo;
+      out_high[ind] = p - 1;
+    }
+    if (p + 1 < hi)
+    {
+      int ind = atomicAdd(new_size, 1);
+      out_low[ind] = p + 1;
+      out_high[ind] = hi;
     }
   }
-  swap(arr, i + 1, right);
-  return (i + 1);
 }
 
-/**
- * @brief Recursive quicksort implementation
- *
- * @param arr the array to sort
- * @param left the left most index of the array to sort
- * @param right the right most index of the array to sort
- */
-__device__ void device_quicksort(float *arr, int left, int right)
+void quicksort(int arr[], int l, int h)
 {
-  if (left < right)
+  int *low_indices = (int *)malloc((h - l + 1) * sizeof(int));
+  int *high_indices = (int *)malloc((h - l + 1) * sizeof(int));
+
+  int top = -1, *device_data, *dev_low_indices, *dev_high_indices;
+
+  low_indices[++top] = l;
+  high_indices[top] = h;
+
+  cudaMalloc(&device_data, (h - l + 1) * sizeof(int));
+  cudaMemcpy(device_data, arr, (h - l + 1) * sizeof(int), cudaMemcpyHostToDevice);
+
+  cudaMalloc(&dev_low_indices, (h - l + 1) * sizeof(int));
+  cudaMemcpy(dev_low_indices, low_indices, (h - l + 1) * sizeof(int), cudaMemcpyHostToDevice);
+
+  cudaMalloc(&dev_high_indices, (h - l + 1) * sizeof(int));
+  cudaMemcpy(dev_high_indices, high_indices, (h - l + 1) * sizeof(int), cudaMemcpyHostToDevice);
+
+  int num_threads = 1;
+  int num_blocks = 1;
+  int num_subarrays = 1;
+
+  int *device_lows, *device_highs, *device_size;
+  cudaMalloc(&device_lows, (h - l + 1) * sizeof(int));
+  cudaMalloc(&device_highs, (h - l + 1) * sizeof(int));
+  cudaMalloc(&device_size, sizeof(int));
+
+  while (num_subarrays > 0)
   {
-    int pivot_index = device_partition(arr, left, right);
-    device_quicksort(arr, left, pivot_index - 1);
-    device_quicksort(arr, pivot_index + 1, right);
+    int new_size = 0;
+    cudaMemcpy(device_size, &new_size, sizeof(int), cudaMemcpyHostToDevice);
+    partition<<<num_blocks, num_threads>>>(device_data, dev_low_indices, dev_high_indices, num_subarrays, device_lows, device_highs, device_size);
+
+    cudaMemcpy(&new_size, device_size, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(dev_low_indices, device_lows, new_size * sizeof(int), cudaMemcpyDeviceToDevice);
+    cudaMemcpy(dev_high_indices, device_highs, new_size * sizeof(int), cudaMemcpyDeviceToDevice);
+
+    if (new_size < NUM_THREADS)
+    {
+      num_threads = new_size;
+    }
+    else
+    {
+      num_threads = NUM_THREADS;
+      num_blocks = new_size / num_threads + (new_size % num_threads == 0 ? 0 : 1);
+    }
+    num_subarrays = new_size;
+    cudaMemcpy(arr, device_data, (h - l + 1) * sizeof(int), cudaMemcpyDeviceToHost);
   }
-}
 
-/**
- * @brief Responsible for calling device quicksort function
- *
- * @param arr the array to sort
- * @param size the number of elements in the array
- */
-__global__ void quicksort_kernel(float *arr, int size)
-{
-  int idx = threadIdx.x + blockIdx.x * blockDim.x;
-  if (idx == 0)
-  {
-    device_quicksort(arr, 0, size - 1);
-  }
-}
-
-/**
- * @brief Performs quicksort on the given array
- *
- * @param arr the array to sort
- * @param size the number of elements in the array
- */
-void quicksort(float *arr, int size)
-{
-  float *device_data;
-  cudaMalloc(&device_data, size * sizeof(float));
-  cudaMemcpy(device_data, arr, size * sizeof(float), cudaMemcpyHostToDevice);
-
-  int num_blocks = (size + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
-  quicksort_kernel<<<num_blocks, THREADS_PER_BLOCK>>>(device_data, size);
-  cudaDeviceSynchronize();
-
-  cudaMemcpy(arr, device_data, size * sizeof(float), cudaMemcpyDeviceToHost);
   cudaFree(device_data);
+  cudaFree(dev_low_indices);
+  cudaFree(dev_high_indices);
+  cudaFree(device_lows);
+  cudaFree(device_highs);
+  cudaFree(device_size);
+  free(low_indices);
+  free(high_indices);
 }
 
-/**
- * @brief Generates an array of floating point values and performs
- * quicksort on the array.
- *
- * @param argc Two arguments are expects: ./quicksort and #floats to generate and sort
- * @param argv The array of arguments
- * @return int The exit code
- */
 int main(int argc, char **argv)
 {
-  // read k from argv[1] where 2^k is the size of the vector to generate
   istringstream ss(argv[1]);
   unsigned int k;
   if (!(ss >> k) || k > sizeof(size_t) * 8 - 1)
@@ -129,35 +125,35 @@ int main(int argc, char **argv)
     usage();
   }
 
-  // generate vector
-  size_t size = 1 << k;
-  thrust::host_vector<float> host_vec = genVec(size);
-  thrust::device_vector<float> device_vec(size);
-  thrust::copy(host_vec.begin(), host_vec.end(), device_vec.begin());
+  size_t n = 1 << k;
+  size_t bytes = n * sizeof(int);
+  int *in = (int *)malloc(bytes);
 
-  cout << "Sorting vector of size " << size << "..." << endl;
+  for (size_t i = 0; i < n; i++)
+  {
+    in[i] = rand();
+  }
 
   cudaEvent_t start, stop;
   cudaEventCreate(&start);
   cudaEventCreate(&stop);
   cudaEventRecord(start);
 
-  quicksort(thrust::raw_pointer_cast(device_vec.data()), size);
+  quicksort(in, 0, n - 1);
 
   cudaEventRecord(stop);
   cudaEventSynchronize(stop);
   checkCudaError();
 
-  thrust::copy(device_vec.begin(), device_vec.end(), host_vec.begin());
-
   float milliseconds;
   cudaEventElapsedTime(&milliseconds, start, stop);
-
-  cout << "Time: " << milliseconds << " ms" << endl;
+  cout << milliseconds << endl;
 
 #ifdef DEBUG
-  if (!sorted(host_vec))
+  if (!isSorted(in, n))
     cout << "vect is not sorted!" << endl;
 #endif
-  return 0;
+
+  free(in);
+  return EXIT_SUCCESS;
 }
