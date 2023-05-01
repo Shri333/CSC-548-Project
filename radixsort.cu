@@ -1,8 +1,8 @@
 /**
  * @file radixsort.cu
  * @author Henry Sneed & Bonan Huang, Jinlan Gao, Xiaoming Li
- * @brief Implementation based on Empirically Optimized Radix Sort for GPU by Bonan Huang, Jinlan Gao and Xiaoming Li
- * @version 0.1
+ * @brief Implementation based on Empirically Optimized Radix Sort for 
+ * GPU by Bonan Huang, Jinlan Gao and Xiaoming Li with code adapted from https://github.com/qcuong98/GPURadixSort
  * @date 2023-04-01
  *
  */

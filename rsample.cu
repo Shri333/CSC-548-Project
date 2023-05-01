@@ -124,13 +124,13 @@ int main(int argc, char **argv)
   for (int i = 0; i < num_samples; ++i)
   {
     int bucket_size = d_bucket_counts[i];
-    thrust::sort(thrust::device_pointer_cast(data_ptr + i * size), thrust::device_pointer_cast(data_ptr + i * size + bucket_size));
 
     int new_sorted_data_end = sorted_data_end + bucket_size;
     thrust::merge(thrust::device_pointer_cast(data_ptr + i * size), thrust::device_pointer_cast(data_ptr + i * size + bucket_size), d_sorted.begin(), d_sorted.begin() + sorted_data_end, d_temp.begin());
     thrust::copy(d_temp.begin(), d_temp.begin() + new_sorted_data_end, d_sorted.begin());
     sorted_data_end = new_sorted_data_end;
   }
+
 
   thrust::copy(d_sorted.begin(), d_sorted.end(), host_vec.begin());
   cudaEventRecord(stop);
